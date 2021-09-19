@@ -5,10 +5,11 @@
 #ifndef UI_H
 #define UI_H
 
+#include "../include/tests.h"
 #include "../include/input.h"
 #include "../include/output.h"
-#include "../include/String_array.h"
-#include "../include/alloc.h"
+#include "../include/Index.h"
+#include "../include/processing.h"
 
 /** \brief CUI for Onegin
 

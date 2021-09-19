@@ -1,118 +1,143 @@
-#include "../include/input.h"
+#include "include/input.h"
 
-size_t get_line(FILE* const istream, char** line)
+char* create_buffer(int file_descr, size_t* buffer_size)
 {
-    assert(istream);
+    assert(buffer_size);
 
-    char* temp_line = (char*) calloc(DEFAULT_LINE_SIZE, sizeof(char));
-    size_t temp_line_allocated = DEFAULT_LINE_SIZE;
+    struct stat file_stat = {};
+    if(fstat(file_descr, &file_stat) == -1)
+        return nullptr;
 
-    int ch = 0;
+    size_t file_size = file_stat.st_size;
 
-    while((ch = getc(istream)) != EOF && isspace(ch)) //skips whitespaces between lines
-        ;
-    ungetc(ch, istream);
+    char* buffer = (char*) calloc(file_size + 1, sizeof(char));
+    if(buffer == nullptr)
+        return nullptr;
 
-    size_t temp_line_sz = 0;
-    bool ws_flag = 0;
+    size_t read_size = read(file_descr, buffer, file_size);
 
-    while(true)
-    {
-        if(temp_line_sz == temp_line_allocated) //check for overflow
-        {
-            temp_line = (char*) recalloc(temp_line, &temp_line_allocated, temp_line_allocated * 2, sizeof(char));
-        }
+#ifdef TESTS
+    fprintf(stderr, "read_size: %d\n", read_size);
+#endif // TESTS
 
-        ch = getc(istream);
+    buffer = (char*) realloc(buffer, read_size + 1);
 
-        if(ch == '\n' || ch == EOF) //check for end of line or EOF
-            break;
+    buffer[read_size] = '\0';
 
-        if(isspace(ch))
-        {
-            if(ch != ' ')
-                ch = ' ';
+    *buffer_size = read_size;
 
-            if(ws_flag)
-                continue;
-            else
-                ws_flag = 1;
-        }
-        else
-        {
-            ws_flag = 0;
-        }
+    close(file_descr);
 
-        temp_line[temp_line_sz] = (char) ch;
-        temp_line_sz++;
-    }
-    temp_line[temp_line_sz] = '\0'; //c-style string
-
-    *line = temp_line;
-
-    return temp_line_sz;
+    return buffer;
 }
 
-size_t get_command(FILE* const istream, char line[], const size_t maxline)
+Index* create_index_arr(char* buffer, size_t* index_arr_size)
 {
-    assert(istream);
-    assert(line);
+    assert(buffer);
+    assert(index_arr_size);
 
-    int ch = 0;
-
-    while((ch = getc(istream)) != EOF && isspace(ch)) //skips whitespaces between lines
-        ;
-    ungetc(ch, istream);
-
-    size_t curr_len = 0;
-    bool ws_flag = 0;
+    size_t iter = 0;
+    size_t line_num = 0;
+    bool nline_flag = 0;
 
     while(true)
     {
-        if(curr_len == maxline - 1) //check for overflow
+        int ch = buffer[iter];
+
+        if((ch == '\n' || ch == '\0') && nline_flag == 0)
         {
-            fprintf(stderr, "WARNING: string overflow");
-            break;
+            nline_flag = 1;
+            line_num++;
         }
 
-        ch = getc(istream);
+        if(!isspace(ch))
+            nline_flag = 0;
 
-        if(ch == '\n' || ch == EOF) //check for end of line or EOF
+    #ifdef TESTS
+        fprintf(stderr, "iter:%.3d ch:%c line_num:%.3d\n", iter, ch, line_num);
+    #endif // TESTS
+
+        if(ch == '\0')
             break;
 
-        ch = tolower(ch);
-
-        line[curr_len] = (char) ch;
-        curr_len++;
+        iter++;
     }
-    line[curr_len] = '\0'; //c-style string
 
-    return curr_len;
+    Index* index_arr = (Index*) calloc(line_num, sizeof(Index));
+
+    if(index_arr == nullptr)
+    {
+        return nullptr;
+    }
+#ifdef TESTS
+    fprintf(stderr, "line_num: %d\n", line_num);
+#endif // TESTS
+
+    *index_arr_size = line_num;
+
+    set_index_arr(buffer, index_arr, line_num);
+
+    return index_arr;
 }
 
-void fill_str_arr(String_array* str_arr, FILE* const istream)
+void set_index_arr(char* buffer, Index* index_arr, size_t index_arr_size)
 {
-    size_t arr_sz = 0;
-    char** arr = (char**) calloc(DEFAULT_STRARR_SIZE, sizeof(char*));
-    size_t arr_allocated = DEFAULT_STRARR_SIZE;
+    assert(buffer);
+    assert(index_arr);
 
-    while(true)
+    size_t iter = 0;
+    bool first_alpha_flag = 1;
+
+    char* first_symbol  = nullptr;
+    char* first_alpha   = nullptr;
+    char* last_alpha    = nullptr;
+    char* last_symbol   = nullptr;
+
+    for(size_t line_num = 0; line_num < index_arr_size; line_num++)
     {
-        if(arr_allocated == arr_sz)
-            arr = (char**) recalloc(arr, &arr_allocated, arr_allocated * 2, sizeof(char*));
+        while(isspace(buffer[iter]))
+            iter++;
 
-        char* buffer = NULL;
+        first_symbol = &buffer[iter];
 
-        if(get_line(istream, &buffer) == 0)
+        while(true)
         {
-            free(buffer);
-            break;
+            int ch = buffer[iter];
+
+            if(ch == '\n' || ch == '\0')
+                break;
+
+            if(!isspace(ch))
+                last_symbol = &buffer[iter];
+
+            if(first_alpha_flag && isalpha(ch))
+            {
+                first_alpha = &buffer[iter];
+                first_alpha_flag = 0;
+            }
+            if(!first_alpha_flag && isalpha(ch))
+            {
+                last_alpha = &buffer[iter];
+            }
+
+            iter++;
         }
 
-        arr[arr_sz] = buffer;
-        arr_sz++;
+        if(first_alpha == nullptr)
+            first_alpha = first_symbol;
+        if(last_alpha == nullptr)
+            last_alpha = last_symbol;
+
+        index_arr[line_num].begin       = first_symbol;
+        index_arr[line_num].begin_alpha = first_alpha;
+        index_arr[line_num].end_alpha  = last_alpha + 1;
+        index_arr[line_num].end         = last_symbol + 1;
+
+        first_symbol  = nullptr;
+        first_alpha   = nullptr;
+        last_alpha    = nullptr;
+        last_symbol   = nullptr;
+
+        first_alpha_flag = 1;
     }
-    str_arr->allocated = arr_allocated;
-    str_arr->size      = arr_sz;
-    str_arr->arr       = arr;
 }
