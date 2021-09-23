@@ -8,10 +8,18 @@ static int line_cmp(const void* first, const void* second)
     const char* sl_end    = ((const Index*) second)->end;
 
     while(!isalpha(*fl_begin))
+    {
         fl_begin++;
+        if(fl_begin == fl_end)
+            break;
+    }
 
     while(!isalpha(*sl_begin))
+    {
         sl_begin++;
+        if(sl_begin == sl_end)
+            break;
+    }
 
     while(true)
     {
@@ -48,10 +56,18 @@ static int line_cmp_rev(const void* first, const void* second)
     const char* sl_begin    = ((const Index*) second)->end - 1;
 
     while(!isalpha(*fl_begin))
+    {
         fl_begin--;
+        if(fl_begin == fl_end)
+            break;
+    }
 
     while(!isalpha(*sl_begin))
+    {
         sl_begin--;
+        if(sl_begin == sl_end)
+            break;
+    }
 
     while(true)
     {

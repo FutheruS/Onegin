@@ -1,4 +1,4 @@
-SOURCE = source_reworked/*.cpp
+SOURCE = source/*.cpp
 
 build:
 	g++ $(SOURCE) -o Onegin.exe
